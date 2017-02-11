@@ -6,12 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+
+	"golang.org/x/crypto/ocsp"
 )
 
 func main() {
@@ -36,7 +37,7 @@ func main() {
 		log.Fatalln("could not create request")
 	}
 	encoded := url.QueryEscape(base64.StdEncoding.EncodeToString(req))
-	getReq, err := http.NewRequest("GET", "127.0.0.1:8080/"+encoded, bytes.NewBuffer(nil))
+	getReq, err := http.NewRequest("GET", "http://127.0.0.1:8080/"+encoded, bytes.NewBuffer(nil))
 	if err != nil {
 		log.Fatalln("could not create GET request")
 	}
@@ -44,7 +45,7 @@ func main() {
 	var cli http.Client
 	resp, err := cli.Do(getReq)
 	if err != nil {
-		log.Fatalln("no GET response")
+		log.Fatalln("no GET response", err)
 	}
 	defer resp.Body.Close()
 	respData, err := ioutil.ReadAll(resp.Body)
