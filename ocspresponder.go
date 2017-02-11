@@ -2,14 +2,23 @@ package main
 
 import (
 	"encoding/hex"
-	"github.com/cloudflare/cfssl/certdb"
+
 	"golang.org/x/crypto/ocsp"
+
+	"github.com/cloudflare/cfssl/certdb"
+	cfocsp "github.com/cloudflare/cfssl/ocsp"
 )
 
 // CertDbSource is an OCSP response Source backed by certdb.
 // See the cfssl.ocsp.responder.Source interface.
 type CertDbSource struct {
 	Accessor certdb.Accessor
+}
+
+func NewSource(dbAccessor certdb.Accessor) cfocsp.Source {
+	return CertDbSource{
+		Accessor: dbAccessor,
+	}
 }
 
 // Response implements cfssl.ocsp.responder.Source, returning the OCSP response
