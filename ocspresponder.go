@@ -12,7 +12,8 @@ type CertDbSource struct {
 	Accessor certdb.Accessor
 }
 
-// Response implements cfssl.ocsp.responder.Source
+// Response implements cfssl.ocsp.responder.Source, returning the OCSP response
+// with the expiration date furthest in the future
 func (src CertDbSource) Response(req *ocsp.Request) ([]byte, bool) {
 	if req == nil {
 		return nil, false
@@ -27,13 +28,17 @@ func (src CertDbSource) Response(req *ocsp.Request) ([]byte, bool) {
 	}
 	strSN := sn.String()
 
-	record, err := src.Accessor.GetOCSP(strSN, aki)
-	if err == nil || len(record) == 0 {
+	records, err := src.Accessor.GetOCSP(strSN, aki)
+	if err == nil || len(records) == 0 {
 		return nil, false
 	}
 
-	// TODO: determine which Body
-	// field in the []... record to
-	// return
-	return []byte(record[0].Body), true
+	// Find the OCSPRecord with the expiration date furthest in the future
+	cur := records[0]
+	for _, rec := range records {
+		if rec.Expiry.After(cur.Expiry) {
+			cur = rec
+		}
+	}
+	return []byte(cur.Body), true
 }
