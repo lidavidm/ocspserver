@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -35,7 +36,13 @@ func main() {
 		log.Fatalln("could not create request")
 	}
 	encoded := url.QueryEscape(base64.StdEncoding.EncodeToString(req))
-	resp, err := http.Get("127.0.0.1:8080/" + encoded)
+	getReq, err := http.NewRequest("GET", "127.0.0.1:8080/"+encoded, bytes.NewBuffer(nil))
+	if err != nil {
+		log.Fatalln("could not create GET request")
+	}
+	getReq.Header.Set("Content-Type", "application/ocsp-request")
+	var cli http.Client
+	resp, err := cli.Do(getReq)
 	if err != nil {
 		log.Fatalln("no GET response")
 	}
