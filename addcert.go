@@ -108,7 +108,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 		return errors.NewBadRequestString("Unable to parse certificates from PEM data")
 	}
 
-	var serialBigInt *big.Int
+	serialBigInt := new(big.Int)
 	if _, success := serialBigInt.SetString(req.Serial, 16); !success {
 		return errors.NewBadRequestString("Unable to parse serial key of request")
 	}
