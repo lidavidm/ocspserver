@@ -1,0 +1,18 @@
+{
+    "hosts": [
+		"thebest.cs.cornell.edu"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "Ithaca",
+            "O": "The Best Open-Source Hackathon Team",
+            "OU": "WWW",
+            "ST": "New York"
+        }
+    ]
+}
