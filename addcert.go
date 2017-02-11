@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -10,6 +15,8 @@ import (
 	"github.com/cloudflare/cfssl/certdb"
 	"github.com/cloudflare/cfssl/errors"
 	"github.com/cloudflare/cfssl/ocsp"
+
+	stdocsp "golang.org/x/crypto/ocsp"
 )
 
 // This is patterned on
@@ -21,6 +28,7 @@ type Handler struct {
 	dbAccessor certdb.Accessor
 }
 
+// Create a new Handler from a certdb.Accessor
 func NewHandler(dbAccessor certdb.Accessor) http.Handler {
 	return &api.HTTPHandler{
 		Handler: &Handler{
@@ -39,6 +47,20 @@ type jsonAddRequest struct {
 	Expiry    time.Time `json:"expiry"`
 	RevokedAt time.Time `json:"revoked_at"`
 	PEM       string    `json:"pem"`
+}
+
+// Map of valid reason codes
+var validReasons = map[int]bool{
+	stdocsp.Unspecified:          true,
+	stdocsp.KeyCompromise:        true,
+	stdocsp.CACompromise:         true,
+	stdocsp.AffiliationChanged:   true,
+	stdocsp.Superseded:           true,
+	stdocsp.CessationOfOperation: true,
+	stdocsp.CertificateHold:      true,
+	stdocsp.RemoveFromCRL:        true,
+	stdocsp.PrivilegeWithdrawn:   true,
+	stdocsp.AACompromise:         true,
 }
 
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
@@ -67,9 +89,41 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 		return errors.NewBadRequestString("Invalid certificate status")
 	}
 
-	// TODO: validate the PEM data?
+	if _, present := validReasons[req.Reason]; !present {
+		return errors.NewBadRequestString("Invalid certificate status reason code")
+	}
+
 	if len(req.PEM) == 0 {
 		return errors.NewBadRequestString("The provided certificate is empty")
+	}
+
+	// Parse the certificate and validate that it matches
+	block, _ := pem.Decode([]byte(req.PEM))
+	if block == nil {
+		return errors.NewBadRequestString("Unable to parse PEM encoded certificates")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return errors.NewBadRequestString("Unable to parse certificates from PEM data")
+	}
+
+	var serialBigInt *big.Int
+	if _, success := serialBigInt.SetString(req.Serial, 16); !success {
+		return errors.NewBadRequestString("Unable to parse serial key of request")
+	}
+
+	if serialBigInt.Cmp(cert.SerialNumber) != 0 {
+		return errors.NewBadRequestString("Serial key of request and certificate do not match")
+	}
+
+	aki, err := hex.DecodeString(req.AKI)
+	if err != nil {
+		return errors.NewBadRequestString("Unable to decode authority key identifier")
+	}
+
+	if !bytes.Equal(aki, cert.AuthorityKeyId) {
+		return errors.NewBadRequestString("Authority key identifier of request and certificate do not match")
 	}
 
 	cr := certdb.CertificateRecord{
