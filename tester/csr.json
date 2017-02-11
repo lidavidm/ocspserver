@@ -6,13 +6,16 @@
         "algo": "rsa",
         "size": 2048
     },
-    "names": [
-        {
-            "C": "US",
-            "L": "Ithaca",
-            "O": "The Best Open-Source Hackathon Team",
-            "OU": "WWW",
-            "ST": "New York"
-        }
-    ]
+    "subject": {
+        "names": [
+            {
+                "C": "US",
+                "L": "Ithaca",
+                "O": "The Best Open-Source Hackathon Team",
+                "OU": "WWW",
+                "ST": "New York"
+            }
+        ]
+    },
+    "certificate_request" : "-----BEGIN CERTIFICATE REQUEST-----\nMIIC5jCCAc4CAQAwbTELMAkGA1UEBhMCVVMxETAPBgNVBAgTCE5ldyBZb3JrMQ8w\nDQYDVQQHEwZJdGhhY2ExLDAqBgNVBAoTI1RoZSBCZXN0IE9wZW4tU291cmNlIEhh\nY2thdGhvbiBUZWFtMQwwCgYDVQQLEwNXV1cwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDUeuisvHQVdhVcgzhlxTOGxetxCcSOz4AioPMoibGIocKOcLAA\naYiOuqH31rCTVa0Sk/EIRqIZuFdQfzDqXW97JTmFRVwCJ46CsgpT2AytxjJCfJqO\nphcrJt6vyapRJSo71SG/GKu3IDwI/zDm+KwSbufnN7DN+wsKVG8Qk3T4rlTBmA41\nSmrpaCX04q9B0ETMERLDun8s0omuKr34+JY1hsz7RFa0Zs7Oy4Li69w5FI1zEquw\nCNy/qFHYmEepFXN6y7nDECkQjRjHFN0/EqvT8LdrFHgBTanF5PRNRanrGMBaBHo0\nrVNuMKU3eGodILS9S8qBGBunrVHoa8ZUZTCbAgMBAAGgNDAyBgkqhkiG9w0BCQ4x\nJTAjMCEGA1UdEQQaMBiCFnRoZWJlc3QuY3MuY29ybmVsbC5lZHUwDQYJKoZIhvcN\nAQELBQADggEBAADTS1n/47qebMrRuDpDBTf/jW/2+8W+tPV+3YgVd9xlLgH/f1jJ\nQ25c2jaIgs0yHjy54hEoKKKAo5RfCf4W5VjM/m4iglxdLQ/gzDqkZkQjVryky7q6\nvKs3/2GQ7HeJ7fKSBs28FHpf+y3iRIm6IbAv2BPy5xYodbHKKSE9dlZ4SBBKdyuP\npdCl6/tHmdDkUdCEavOff48GgU+kjIpObgAP9B5DYDiLbkfvcjZqj7ji+iJHnoAp\nbJ54GtNLR3Nxruf58tWhCRsUniEqH/FjyPdIrqA1TG0/WIKDTW8xlwuYdnEatQY+\nDs5D4V7CRK8wUbG+W57v3BSInwUYXmYau2A=\n-----END CERTIFICATE REQUEST-----"
 }
