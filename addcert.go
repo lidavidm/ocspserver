@@ -9,6 +9,7 @@ import (
 	"github.com/cloudflare/cfssl/api"
 	"github.com/cloudflare/cfssl/certdb"
 	"github.com/cloudflare/cfssl/errors"
+	"github.com/cloudflare/cfssl/ocsp"
 )
 
 // This is patterned on
@@ -54,7 +55,22 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 		return errors.NewBadRequestString("Unable to parse certificate addition request")
 	}
 
-	// TODO: validate request
+	if len(req.Serial) == 0 {
+		return errors.NewBadRequestString("Serial number is required but not provided")
+	}
+
+	if len(req.AKI) == 0 {
+		return errors.NewBadRequestString("Authority key identifier is required but not provided")
+	}
+
+	if _, present := ocsp.StatusCode[req.Status]; !present {
+		return errors.NewBadRequestString("Invalid certificate status")
+	}
+
+	// TODO: validate the PEM data?
+	if len(req.PEM) == 0 {
+		return errors.NewBadRequestString("The provided certificate is empty")
+	}
 
 	cr := certdb.CertificateRecord{
 		Serial:    req.Serial,
