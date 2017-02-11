@@ -53,7 +53,7 @@ func main() {
 	}
 	pResponse, err := ocsp.ParseResponse(respData, pCertificate)
 	if err != nil {
-		log.Fatalln("could not parse the ocsp response")
+		log.Fatalln("could not parse the ocsp response: %v", err)
 	}
 	switch pResponse.Status {
 	case ocsp.Good:
