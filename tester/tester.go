@@ -2,10 +2,14 @@ package main
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 )
 
@@ -22,10 +26,34 @@ func main() {
 	if pemBlock == nil {
 		log.Fatalln("could not decode certificate file")
 	}
-	_, err = x509.ParseCertificate(pemBlock.Bytes)
+	pCertificate, err := x509.ParseCertificate(pemBlock.Bytes)
 	if err != nil {
 		log.Fatalln("could not parse certificate")
 	}
-
-	log.Println("Done")
+	req, err := ocsp.CreateRequest(pCertificate, pCertificate, nil)
+	if err != nil {
+		log.Fatalln("could not create request")
+	}
+	encoded := url.QueryEscape(base64.StdEncoding.EncodeToString(req))
+	resp, err := http.Get("127.0.0.1:8080/" + encoded)
+	if err != nil {
+		log.Fatalln("no GET response")
+	}
+	defer resp.Body.Close()
+	respData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln("could not read the GET response")
+	}
+	pResponse, err := ocsp.ParseResponse(respData, pCertificate)
+	if err != nil {
+		log.Fatalln("could not parse the ocsp response")
+	}
+	switch pResponse.Status {
+	case ocsp.Good:
+		log.Println("Good")
+	case ocsp.Revoked:
+		log.Println("Revoked")
+	case ocsp.Unknown:
+		log.Println("Unknown")
+	}
 }
