@@ -18,13 +18,11 @@ type CertDbSource struct {
 	Accessor certdb.Accessor
 }
 
-const interval = 96 * time.Hour
-
-func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer) cfocsp.Source {
+func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer, interval time.Duration, refreshFrequency time.Duration) cfocsp.Source {
 
 	go func() { // heavy join
 		for {
-			time.Sleep(30 * time.Minute) // TODO decide what interval
+			time.Sleep(refreshFrequency) // TODO decide what interval
 			unexpired, err := dbAccessor.GetUnexpiredCertificates()
 			if err != nil {
 				log.Critical("could not access database: ", err)
@@ -70,6 +68,7 @@ func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer) cfocsp.Source {
 			}
 		}
 	}()
+
 	return CertDbSource{
 		Accessor: dbAccessor,
 	}

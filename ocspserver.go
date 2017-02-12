@@ -22,6 +22,7 @@ func main() {
 	apiFlag := flag.Bool("api", false, "Run the API server.")
 	ocspFlag := flag.Bool("ocsp", false, "Run the OCSP responder.")
 	dbConfigFlag := flag.String("db-config", "", "The certdb to use.")
+	refreshFreqFlag := flag.String("-ocsp-refresh-freq", "15m", "The frequency at which to refresh OCSP responses in the database, as a duration string.")
 
 	flag.Parse()
 
@@ -41,7 +42,11 @@ func main() {
 		http.Handle("/api/addCert", NewHandler(dbAccessor))
 		http.Handle("/api/revokeCert", revoke.NewHandler(dbAccessor))
 	} else {
-		handler := ocsp.NewResponder(NewSource(dbAccessor, signer))
+		refreshFreq, err := time.ParseDuration(*refreshFreqFlag)
+		if err != nil {
+			log.Fatal("Could not parse interval duration string:", err)
+		}
+		handler := ocsp.NewResponder(NewSource(dbAccessor, signer, interval, refreshFreq))
 		http.Handle("/", http.StripPrefix("/", handler))
 	}
 
