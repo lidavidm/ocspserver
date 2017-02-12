@@ -29,7 +29,7 @@ type Handler struct {
 	signer     ocsp.Signer
 }
 
-// Create a new Handler from a certdb.Accessor
+// NewHandler creates a new Handler from a certdb.Accessor and ocsp.Signer
 func NewHandler(dbAccessor certdb.Accessor, signer ocsp.Signer) http.Handler {
 	return &api.HTTPHandler{
 		Handler: &Handler{
@@ -65,6 +65,7 @@ var validReasons = map[int]bool{
 	stdocsp.AACompromise:         true,
 }
 
+// Handle handles HTTP requests to add certificates
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
