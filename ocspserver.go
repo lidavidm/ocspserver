@@ -20,7 +20,7 @@ func main() {
 	ocspIssuerFlag := flag.String("ocsp-issuer", "", "The OCSP issuer cert to use.")
 	ocspResponderFlag := flag.String("ocsp-responder", "", "The OCSP responder cert to use.")
 	ocspKeyFlag := flag.String("ocsp-responder-key", "", "The OCSP responder key to use.")
-	ocspIntervalFlag := flag.Int("oscp-interval", 60, "The OCSP response validity interval, in seconds.")
+	ocspIntervalFlag := flag.String("oscp-interval", "60s", "The OCSP response validity interval, as a duration string (60s, 2h, etc).")
 
 	flag.Parse()
 
@@ -36,11 +36,17 @@ func main() {
 
 	dbAccessor := sql.NewAccessor(db)
 
+	interval, err := time.ParseDuration(*ocspIntervalFlag)
+	if err != nil {
+		log.Fatal("Could not parse interval duration string:", err)
+	}
+
+	signer, err := ocsp.NewSignerFromFile(*ocspIssuerFlag, *ocspResponderFlag, *ocspKeyFlag, interval)
+	if err != nil {
+		log.Fatal("Could not create OCSP signer: ", err)
+	}
+
 	if *apiFlag {
-		signer, err := ocsp.NewSignerFromFile(*ocspIssuerFlag, *ocspResponderFlag, *ocspKeyFlag, time.Duration(*ocspIntervalFlag))
-		if err != nil {
-			log.Fatal("Could not create OCSP signer: ", err)
-		}
 		http.Handle("/api/addCert", NewHandler(dbAccessor, signer))
 		http.Handle("/api/revokeCert", revoke.NewHandler(dbAccessor))
 	} else {
