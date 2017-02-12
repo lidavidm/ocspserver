@@ -20,14 +20,9 @@ type CertDbSource struct {
 
 const interval = 96 * time.Hour
 
-func NewSource(dbAccessor certdb.Accessor, caFile string, respFile string, respKey string) cfocsp.Source {
+func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer) cfocsp.Source {
 
 	go func() { // heavy join
-		signer, err := cfocsp.NewSignerFromFile(caFile, respFile, respKey, interval)
-		if err != nil {
-			log.Critical("could not create OCSP signer: ", err)
-			return
-		}
 		for {
 			time.Sleep(30 * time.Minute) // TODO decide what interval
 			unexpired, err := dbAccessor.GetUnexpiredCertificates()

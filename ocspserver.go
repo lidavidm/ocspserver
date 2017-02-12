@@ -22,25 +22,11 @@ func main() {
 	apiFlag := flag.Bool("api", false, "Run the API server.")
 	ocspFlag := flag.Bool("ocsp", false, "Run the OCSP responder.")
 	dbConfigFlag := flag.String("db-config", "", "The certdb to use.")
-	caFlag := flag.String("ca", "", "CA certificate")
-	respFlag := flag.String("responder", "", "responder certificate")
-	respKeyFlag := flag.String("responder-key", "", "responder key")
 
 	flag.Parse()
 
 	if !*apiFlag && !*ocspFlag {
 		log.Fatal("Exactly one of --api and --ocsp is required.")
-	}
-
-	if *ocspFlag {
-		switch {
-		case *caFlag == "":
-			log.Fatal("CA certificate required (use the -ca flag)")
-		case *respFlag == "":
-			log.Fatal("responder certificate required (use the -responder flag)")
-		case *respKeyFlag == "":
-			log.Fatal("responder key file required (use the -responder-key flag)")
-		}
 	}
 
 	db, err := dbconf.DBFromConfig(*dbConfigFlag)
@@ -55,7 +41,7 @@ func main() {
 		http.Handle("/api/addCert", NewHandler(dbAccessor))
 		http.Handle("/api/revokeCert", revoke.NewHandler(dbAccessor))
 	} else {
-		handler := ocsp.NewResponder(NewSource(dbAccessor, *caFlag, *respFlag, *respKeyFlag))
+		handler := ocsp.NewResponder(NewSource(dbAccessor, signer))
 		http.Handle("/", http.StripPrefix("/", handler))
 	}
 
