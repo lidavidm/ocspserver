@@ -92,7 +92,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 		return errors.NewBadRequestString("Invalid certificate status")
 	}
 
-	if ocsp.StatusCode[req.Status] == stdocsp.Revoked && req.RevokedAt == (time.Time{}) {
+	if ocsp.StatusCode[req.Status] == stdocsp.Revoked && req.RevokedAt.IsZero() {
 		return errors.NewBadRequestString("Revoked certificate should specify when it was revoked")
 	}
 
