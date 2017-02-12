@@ -35,34 +35,39 @@ func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer, interval time.D
 					return
 				}
 				for _, ocsp := range ocsps {
-					if ocsp.Expiry.After(time.Now()) {
-						newExpiry := time.Now().Add(interval)
-						cert, err := helpers.ParseCertificatePEM([]byte(certRecord.PEM)) // PEM is ASCII data
+					if !ocsp.Expiry.After(time.Now()) {
+						continue
+					}
+					newExpiry := time.Now().Add(interval)
+					cert, err := helpers.ParseCertificatePEM([]byte(certRecord.PEM)) // PEM is ASCII data
 
-						if err != nil {
-							log.Critical("could not parse PEM: ", err)
-							// TODO: Decide what to do with this ocsp record
-							continue
-						}
+					if err != nil {
+						log.Critical("could not parse PEM: ", err)
+						// TODO: Decide what to do with this ocsp record
+						continue
+					}
 
-						signReq := cfocsp.SignRequest{
-							Certificate: cert,
-							Status:      certRecord.Status,
-						}
+					signReq := cfocsp.SignRequest{
+						Certificate: cert,
+						Status:      certRecord.Status,
+					}
 
-						if certRecord.Status == "revoked" {
-							signReq.Reason = certRecord.Reason
-							signReq.RevokedAt = certRecord.RevokedAt
-						}
+					if certRecord.Status == "revoked" {
+						signReq.Reason = certRecord.Reason
+						signReq.RevokedAt = certRecord.RevokedAt
+					}
 
-						resp, err := signer.Sign(signReq)
-						if err != nil {
-							log.Critical("could not sign OCSP response: ", err)
-							// Unable to sign!
-							return
-						}
+					resp, err := signer.Sign(signReq)
+					if err != nil {
+						log.Critical("could not sign OCSP response: ", err)
+						// Unable to sign!
+						return
+					}
 
-						err = dbAccessor.UpsertOCSP(cert.SerialNumber.String(), hex.EncodeToString(cert.AuthorityKeyId), string(resp), newExpiry)
+					err = dbAccessor.UpsertOCSP(cert.SerialNumber.String(), hex.EncodeToString(cert.AuthorityKeyId), string(resp), newExpiry)
+					if err != nil {
+						log.Critical("could not insert into database: ", err)
+						return
 					}
 				}
 			}
