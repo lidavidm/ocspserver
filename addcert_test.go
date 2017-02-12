@@ -14,28 +14,30 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/cloudflare/cfssl/certdb"
 	"github.com/cloudflare/cfssl/certdb/sql"
 	"github.com/cloudflare/cfssl/certdb/testdb"
+	"github.com/cloudflare/cfssl/ocsp"
 )
 
 func prepDB() (certdb.Accessor, error) {
 	// TODO: when integrating with CFSSL, use the DB already in
 	// the repository
-	db := testdb.SQLiteDB("testdata/certstore_development.db")
+	db := testdb.SQLiteDB("tester/certstore_development.db")
 	dbAccessor := sql.NewAccessor(db)
 
 	return dbAccessor, nil
 }
 
-func makeRequest(t *testing.T, req map[string]interface{}) (resp *http.Response, body []byte) {
+func makeRequest(t *testing.T, signer ocsp.Signer, req map[string]interface{}) (resp *http.Response, body []byte) {
 	dbAccessor, err := prepDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ts := httptest.NewServer(NewHandler(dbAccessor))
+	ts := httptest.NewServer(NewHandler(dbAccessor, signer))
 	defer ts.Close()
 
 	blob, err := json.Marshal(req)
@@ -56,7 +58,7 @@ func makeRequest(t *testing.T, req map[string]interface{}) (resp *http.Response,
 	return
 }
 
-func makeCertificate() (serialNumber *big.Int, cert *x509.Certificate, pemBytes []byte, err error) {
+func makeCertificate() (serialNumber *big.Int, cert *x509.Certificate, pemBytes []byte, signer ocsp.Signer, err error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return
@@ -77,7 +79,54 @@ func makeCertificate() (serialNumber *big.Int, cert *x509.Certificate, pemBytes 
 	}
 	cert = &template
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
+	issuerSerial, err := rand.Int(rand.Reader, serialNumberRange)
+	if err != nil {
+		return
+	}
+	responderSerial, err := rand.Int(rand.Reader, serialNumberRange)
+	if err != nil {
+		return
+	}
+
+	// Generate a CA certificate
+	issuerTemplate := x509.Certificate{
+		SerialNumber: issuerSerial,
+		Subject: pkix.Name{
+			Organization: []string{"Cornell CS 5152"},
+		},
+		AuthorityKeyId: []byte{42, 42, 42, 42},
+		KeyUsage:       x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:           true,
+		BasicConstraintsValid: true,
+	}
+	issuerBytes, err := x509.CreateCertificate(rand.Reader, &issuerTemplate, &issuerTemplate, &privKey.PublicKey, privKey)
+	if err != nil {
+		return
+	}
+	issuer, err := x509.ParseCertificate(issuerBytes)
+	if err != nil {
+		return
+	}
+
+	responderTemplate := x509.Certificate{
+		SerialNumber: responderSerial,
+		Subject: pkix.Name{
+			Organization: []string{"Cornell CS 5152 Responder"},
+		},
+		AuthorityKeyId: []byte{42, 42, 42, 43},
+	}
+	responderBytes, err := x509.CreateCertificate(rand.Reader, &responderTemplate, &responderTemplate, &privKey.PublicKey, privKey)
+	if err != nil {
+		return
+	}
+	responder, err := x509.ParseCertificate(responderBytes)
+	if err != nil {
+		return
+	}
+
+	signer, err = ocsp.NewSigner(issuer, responder, privKey, time.Hour)
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, issuer, &privKey.PublicKey, privKey)
 
 	if err != nil {
 		return
@@ -92,13 +141,13 @@ func makeCertificate() (serialNumber *big.Int, cert *x509.Certificate, pemBytes 
 }
 
 func TestInsertValidCertificate(t *testing.T) {
-	serialNumber, cert, pemBytes, err := makeCertificate()
+	serialNumber, cert, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
@@ -111,13 +160,13 @@ func TestInsertValidCertificate(t *testing.T) {
 }
 
 func TestInsertMissingSerial(t *testing.T) {
-	_, cert, pemBytes, err := makeCertificate()
+	_, cert, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
 		"pem":                      string(pemBytes),
@@ -129,13 +178,13 @@ func TestInsertMissingSerial(t *testing.T) {
 }
 
 func TestInsertMissingAKI(t *testing.T) {
-	serialNumber, _, pemBytes, err := makeCertificate()
+	serialNumber, _, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number": serialNumber.Text(16),
 		"status":        "good",
 		"pem":           string(pemBytes),
@@ -147,13 +196,13 @@ func TestInsertMissingAKI(t *testing.T) {
 }
 
 func TestInsertMissingPEM(t *testing.T) {
-	serialNumber, cert, _, err := makeCertificate()
+	serialNumber, cert, _, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
@@ -165,13 +214,13 @@ func TestInsertMissingPEM(t *testing.T) {
 }
 
 func TestInsertInvalidSerial(t *testing.T) {
-	_, cert, pemBytes, err := makeCertificate()
+	_, cert, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            "this is not a serial number",
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
@@ -184,13 +233,13 @@ func TestInsertInvalidSerial(t *testing.T) {
 }
 
 func TestInsertInvalidAKI(t *testing.T) {
-	serialNumber, _, pemBytes, err := makeCertificate()
+	serialNumber, _, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": "this is not an AKI",
 		"status":                   "good",
@@ -203,13 +252,13 @@ func TestInsertInvalidAKI(t *testing.T) {
 }
 
 func TestInsertInvalidStatus(t *testing.T) {
-	serialNumber, cert, pemBytes, err := makeCertificate()
+	serialNumber, cert, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "invalid",
@@ -222,13 +271,13 @@ func TestInsertInvalidStatus(t *testing.T) {
 }
 
 func TestInsertInvalidPEM(t *testing.T) {
-	serialNumber, cert, _, err := makeCertificate()
+	serialNumber, cert, _, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
@@ -241,13 +290,13 @@ func TestInsertInvalidPEM(t *testing.T) {
 }
 
 func TestInsertWrongSerial(t *testing.T) {
-	_, cert, pemBytes, err := makeCertificate()
+	_, cert, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            big.NewInt(1).Text(16),
 		"authority_key_identifier": hex.EncodeToString(cert.AuthorityKeyId),
 		"status":                   "good",
@@ -260,13 +309,13 @@ func TestInsertWrongSerial(t *testing.T) {
 }
 
 func TestInsertWrongAKI(t *testing.T) {
-	serialNumber, _, pemBytes, err := makeCertificate()
+	serialNumber, _, pemBytes, signer, err := makeCertificate()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, body := makeRequest(t, map[string]interface{}{
+	resp, body := makeRequest(t, signer, map[string]interface{}{
 		"serial_number":            serialNumber.Text(16),
 		"authority_key_identifier": hex.EncodeToString([]byte{7, 7}),
 		"status":                   "good",
@@ -277,3 +326,5 @@ func TestInsertWrongAKI(t *testing.T) {
 		t.Fatal("Expected HTTP Bad Request", resp.StatusCode, string(body))
 	}
 }
+
+// TODO: test that inserting a revoked certificate checks RevokedAt

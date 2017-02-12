@@ -23,16 +23,18 @@ import (
 // https://github.com/cloudflare/cfssl/blob/master/api/revoke/revoke.go
 
 // A Handler accepts new SSL certificates and inserts them into the
-// certdb
+// certdb, creating an appropriate OCSP response for them.
 type Handler struct {
 	dbAccessor certdb.Accessor
+	signer     ocsp.Signer
 }
 
 // Create a new Handler from a certdb.Accessor
-func NewHandler(dbAccessor certdb.Accessor) http.Handler {
+func NewHandler(dbAccessor certdb.Accessor, signer ocsp.Signer) http.Handler {
 	return &api.HTTPHandler{
 		Handler: &Handler{
 			dbAccessor: dbAccessor,
+			signer:     signer,
 		},
 		Methods: []string{"POST"},
 	}
@@ -89,6 +91,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 		return errors.NewBadRequestString("Invalid certificate status")
 	}
 
+	if ocsp.StatusCode[req.Status] == stdocsp.Revoked && req.RevokedAt == (time.Time{}) {
+		return errors.NewBadRequestString("Revoked certificate should specify when it was revoked")
+	}
+
 	if _, present := validReasons[req.Reason]; !present {
 		return errors.NewBadRequestString("Invalid certificate status reason code")
 	}
@@ -139,6 +145,34 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) error {
 
 	err = h.dbAccessor.InsertCertificate(cr)
 	if err != nil {
+		return err
+	}
+
+	// Now create an appropriate OCSP response
+	sr := ocsp.SignRequest{
+		Certificate: cert,
+		Status:      req.Status,
+		Reason:      req.Reason,
+		RevokedAt:   req.RevokedAt,
+	}
+	ocspResponse, err := h.signer.Sign(sr)
+	if err != nil {
+		return err
+	}
+
+	// We parse the OCSP repsonse in order to get the next
+	// update time/expiry time
+	ocspParsed, err := stdocsp.ParseResponse(ocspResponse, nil)
+	if err != nil {
+		return err
+	}
+
+	if err = h.dbAccessor.InsertOCSP(certdb.OCSPRecord{
+		Serial: req.Serial,
+		AKI:    req.AKI,
+		Body:   string(ocspResponse),
+		Expiry: ocspParsed.NextUpdate,
+	}); err != nil {
 		return err
 	}
 
