@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/ocsp"
 
 	"github.com/cloudflare/cfssl/certdb"
+	"github.com/cloudflare/cfssl/log"
 	cfocsp "github.com/cloudflare/cfssl/ocsp"
 )
 
@@ -24,18 +25,20 @@ func NewSource(dbAccessor certdb.Accessor, caFile string, respFile string, respK
 	go func() { // heavy join
 		signer, err := cfocsp.NewSignerFromFile(caFile, respFile, respKey, interval)
 		if err != nil {
-			// TODO log it, this is bad.
+			log.Critical("could not create OCSP signer: ", err)
 			return
 		}
 		for {
-			time.Sleep(5 * time.Second) // TODO decide what interval
+			time.Sleep(30 * time.Minute) // TODO decide what interval
 			unexpired, err := dbAccessor.GetUnexpiredCertificates()
 			if err != nil {
+				log.Critical("could not access database: ", err)
 				return
 			}
 			for _, certRecord := range unexpired {
 				ocsps, err := dbAccessor.GetOCSP(certRecord.Serial, certRecord.AKI)
 				if err != nil {
+					log.Critical("could not access database: ", err)
 					return
 				}
 				for _, ocsp := range ocsps {
@@ -44,6 +47,7 @@ func NewSource(dbAccessor certdb.Accessor, caFile string, respFile string, respK
 						cert, err := helpers.ParseCertificatePEM([]byte(certRecord.PEM)) // PEM is ASCII data
 
 						if err != nil {
+							log.Critical("could not parse PEM: ", err)
 							// TODO: Decide what to do with this ocsp record
 							continue
 						}
@@ -60,7 +64,8 @@ func NewSource(dbAccessor certdb.Accessor, caFile string, respFile string, respK
 
 						resp, err := signer.Sign(signReq)
 						if err != nil {
-							// Unable to sign! fatal
+							log.Critical("could not sign OCSP response: ", err)
+							// Unable to sign!
 							return
 						}
 
