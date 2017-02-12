@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/cloudflare/cfssl/api/revoke"
 	"github.com/cloudflare/cfssl/certdb/dbconf"
@@ -22,7 +23,7 @@ func main() {
 	apiFlag := flag.Bool("api", false, "Run the API server.")
 	ocspFlag := flag.Bool("ocsp", false, "Run the OCSP responder.")
 	dbConfigFlag := flag.String("db-config", "", "The certdb to use.")
-	refreshFreqFlag := flag.String("-ocsp-refresh-freq", "15m", "The frequency at which to refresh OCSP responses in the database, as a duration string.")
+	refreshFreqFlag := flag.String("ocsp-refresh-freq", "15m", "The frequency at which to refresh OCSP responses in the database, as a duration string.")
 
 	flag.Parse()
 
