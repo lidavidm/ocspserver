@@ -22,7 +22,7 @@ func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer, interval time.D
 
 	go func() { // heavy join
 		for {
-			time.Sleep(refreshFrequency) // TODO decide what interval
+			time.Sleep(refreshFrequency)
 			unexpired, err := dbAccessor.GetUnexpiredCertificates()
 			if err != nil {
 				log.Critical("could not access database: ", err)
@@ -34,18 +34,19 @@ func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer, interval time.D
 					log.Critical("could not access database: ", err)
 					return
 				}
+				cert, err := helpers.ParseCertificatePEM([]byte(certRecord.PEM)) // PEM is ASCII data
+
+				if err != nil {
+					log.Critical("could not parse cert PEM: ", err)
+					// TODO: Decide what to do with this certRecord
+					continue
+				}
+
 				for _, ocsp := range ocsps {
 					if !ocsp.Expiry.After(time.Now()) {
 						continue
 					}
 					newExpiry := time.Now().Add(interval)
-					cert, err := helpers.ParseCertificatePEM([]byte(certRecord.PEM)) // PEM is ASCII data
-
-					if err != nil {
-						log.Critical("could not parse PEM: ", err)
-						// TODO: Decide what to do with this ocsp record
-						continue
-					}
 
 					signReq := cfocsp.SignRequest{
 						Certificate: cert,
@@ -60,7 +61,6 @@ func NewSource(dbAccessor certdb.Accessor, signer cfocsp.Signer, interval time.D
 					resp, err := signer.Sign(signReq)
 					if err != nil {
 						log.Critical("could not sign OCSP response: ", err)
-						// Unable to sign!
 						return
 					}
 
