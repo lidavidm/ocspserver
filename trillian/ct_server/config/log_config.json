@@ -1,0 +1,8 @@
+[{
+    "LogID": 0,
+    "Prefix": "",
+    "RootsPEMFile": "/config/roots.cert",
+    "PubKeyPEMFile": "/config/pubkey.pem",
+    "PrivKeyPEMFile": "/config/privkey.pem",
+    "PrivKeyPassword": "dirk"
+}]
