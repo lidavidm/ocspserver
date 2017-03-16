@@ -7,7 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"syscall"
+	"os/exec"
+	"time"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 
 	flag.Parse()
 
-	args := append([]string{*procname}, flag.Args()...)
+	args := flag.Args()
 
 	if *config != "" {
 		var jsonArgs map[string]string
@@ -36,7 +37,13 @@ func main() {
 		}
 	}
 
-	fmt.Println(args)
-
-	syscall.Exec(*target, args, os.Environ())
+	for {
+		fmt.Println("Starting", *procname, "with arguments", args)
+		cmd := exec.Command(*target, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+		fmt.Println("Command exited, trying again...")
+		time.Sleep(time.Second)
+	}
 }
