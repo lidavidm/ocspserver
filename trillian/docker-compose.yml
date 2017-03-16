@@ -1,0 +1,34 @@
+version: '2'
+networks:
+  trillian: {}
+services:
+  db:
+    build: db/
+    ports:
+      - 3306
+    image: db:db
+    networks:
+      - trillian
+  log_server:
+    build: log_server
+    image: log_server:log_server
+    networks:
+      - trillian
+    ports:
+      - 8090
+      - 8091
+    volumes:
+      - ./log_server/config:/config
+    depends_on:
+      - db
+  ct_server:
+    build: ct_server
+    ports:
+      - 6962
+    image: ct_server:ct_server
+    networks:
+      - trillian
+    volumes:
+      - ./ct_server/config:/config
+    depends_on:
+      - log_server

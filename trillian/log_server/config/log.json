@@ -2,5 +2,7 @@
     "-mysql_uri": "root:@tcp(db:3306)/trillian",
     "-private_key_file": "/config/privkey.pem",
     "-private_key_password": "towel",
-    "-log_dir": "/"
+    "-log_dir": "/",
+    "-alsologtostderr": "-alsologtostderr",
+    "-v": "100"
 }
