@@ -30,7 +30,7 @@ func main() {
 	ctx := context.Background()
 
 	log.Print("Creating client...")
-	logclient, err := logclient.New("http://localhost:6962", client, options)
+	logclient, err := logclient.New(host, client, options)
 	if err != nil {
 		log.Fatal(err)
 	}
