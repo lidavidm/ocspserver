@@ -14,6 +14,9 @@ services:
     image: log_server:log_server
     networks:
       - trillian
+    ports:
+      - 8090
+      - 8091
     volumes:
       - ./log_server/config:/config
     depends_on:
